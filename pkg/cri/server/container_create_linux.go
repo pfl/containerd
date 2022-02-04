@@ -36,7 +36,6 @@ import (
 	"github.com/opencontainers/selinux/go-selinux/label"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
-	"github.com/containerd/containerd/pkg/blockio"
 	"github.com/containerd/containerd/pkg/cri/annotations"
 	"github.com/containerd/containerd/pkg/cri/config"
 	customopts "github.com/containerd/containerd/pkg/cri/opts"
@@ -265,26 +264,11 @@ func (c *criService) containerSpec(
 
 	supplementalGroups := securityContext.GetSupplementalGroups()
 
-	// Get blockio class
-	blockIOClass, err := c.blockIOClassFromAnnotations(config.GetMetadata().GetName(), config.Annotations, sandboxConfig.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set blockio class: %w", err)
-	}
-	if blockIOClass != "" {
-		if linuxBlockIO, err := blockio.ClassNameToLinuxOCI(blockIOClass); err == nil {
-			specOpts = append(specOpts, oci.WithBlockIO(linuxBlockIO))
-		} else {
-			return nil, err
-		}
-	}
-
-	// Get RDT class
-	rdtClass, err := c.rdtClassFromAnnotations(config.GetMetadata().GetName(), config.Annotations, sandboxConfig.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set RDT class: %w", err)
-	}
-	if rdtClass != "" {
-		specOpts = append(specOpts, oci.WithRdt(rdtClass, "", ""))
+	// Handle QoS resources
+	if o, err := c.generateContainerQoSResourceSpecOpts(config, sandboxConfig); err != nil {
+		return nil, err
+	} else {
+		specOpts = append(specOpts, o...)
 	}
 
 	for pKey, pValue := range getPassthroughAnnotations(sandboxConfig.Annotations,
