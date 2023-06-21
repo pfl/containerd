@@ -31,11 +31,15 @@ type result struct {
 type resultRequest struct {
 	create *CreateContainerRequest
 	update *UpdateContainerRequest
+	networkrequest *AdjustPodSandboxNetworkRequest
+	networkconfrequest *CreatePodSandboxNetworkConfRequest
 }
 
 type resultReply struct {
 	adjust *ContainerAdjustment
 	update []*ContainerUpdate
+	networkcapabilities []*NetworkConfiguration
+	networkconf []*CreateNetworkConf
 }
 
 type resultOwners map[string]*owners
@@ -130,6 +134,28 @@ func collectStopContainerResult() *result {
 	return collectUpdateContainerResult(nil)
 }
 
+func collectAdjustPodSandboxNetworkResult(request *AdjustPodSandboxNetworkRequest) *result {
+	return &result{
+		request: resultRequest{
+			networkrequest: request,
+		},
+		reply: resultReply{},
+		updates: nil,
+		owners: resultOwners{},
+	}
+}
+
+func collectCreatePodSandboxNetworkConfResult(request *CreatePodSandboxNetworkConfRequest) *result {
+	return &result{
+		request: resultRequest{
+			networkconfrequest: request,
+		},
+		reply: resultReply{},
+		updates: nil,
+		owners: resultOwners{},
+	}
+}
+
 func (r *result) createContainerResponse() *CreateContainerResponse {
 	return &CreateContainerResponse{
 		Adjust: r.reply.adjust,
@@ -147,6 +173,18 @@ func (r *result) updateContainerResponse() *UpdateContainerResponse {
 func (r *result) stopContainerResponse() *StopContainerResponse {
 	return &StopContainerResponse{
 		Update: r.reply.update,
+	}
+}
+
+func (r *result) adjustPodSandboxNetworkResponse() *AdjustPodSandboxNetworkResponse {
+	return &AdjustPodSandboxNetworkResponse{
+		Networkconfiguration: r.reply.networkcapabilities,
+	}
+}
+
+func (r *result) createPodSandboxNetworkConfResponse() *CreatePodSandboxNetworkConfResponse {
+	return &CreatePodSandboxNetworkConfResponse{
+		NetworkConf: r.reply.networkconf,
 	}
 }
 
@@ -174,6 +212,20 @@ func (r *result) apply(response interface{}, plugin string) error {
 			return nil
 		}
 		if err := r.update(rpl.Update, plugin); err != nil {
+			return err
+		}
+	case *AdjustPodSandboxNetworkResponse:
+		if rpl == nil {
+			return nil
+		}
+		if err := r.adjustpodsandboxnetwork(rpl.Networkconfiguration, plugin); err != nil {
+			return err
+		}
+	case *CreatePodSandboxNetworkConfResponse:
+		if rpl == nil {
+			return nil
+		}
+		if err := r.createpodsandboxnetworkconf(rpl.NetworkConf, plugin); err != nil {
 			return err
 		}
 	default:
@@ -659,6 +711,40 @@ func (r *result) adjustCgroupsPath(path, plugin string) error {
 	return nil
 }
 
+func (r *result) adjustpodsandboxnetwork(conf []*NetworkConfiguration, plugin string) error {
+	id := r.request.create.Container.Id
+
+	if conf == nil || len(conf) == 0 {
+		return nil
+	}
+
+	if err := r.owners.claimAdjustPodSandboxNetwork(id, plugin); err != nil {
+		return err
+	}
+
+	r.request.networkrequest.Networkconfiguration = conf
+	r.reply.networkcapabilities = conf
+
+	return nil
+}
+
+func (r *result) createpodsandboxnetworkconf(conf []*CreateNetworkConf, plugin string) error {
+	id := r.request.create.Container.Id
+
+	if conf == nil || len(conf) == 0 {
+		return nil
+	}
+
+	if err := r.owners.claimCreatePodSandboxNetworkConf(id, plugin); err != nil {
+		return err
+	}
+
+	r.request.networkconfrequest.NetworkConf = conf
+	r.reply.networkconf = conf
+
+	return nil
+}
+
 func (r *result) updateResources(reply, u *ContainerUpdate, plugin string) error {
 	if u.Linux == nil || u.Linux.Resources == nil {
 		return nil
@@ -873,6 +959,8 @@ type owners struct {
 	rdtClass            string
 	unified             map[string]string
 	cgroupsPath         string
+	adjustPodSandboxNetwork       string
+	createPodSandboxNetworkConf   string
 }
 
 func (ro resultOwners) ownersFor(id string) *owners {
@@ -978,6 +1066,14 @@ func (ro resultOwners) claimUnified(id, key, plugin string) error {
 
 func (ro resultOwners) claimCgroupsPath(id, plugin string) error {
 	return ro.ownersFor(id).claimCgroupsPath(plugin)
+}
+
+func (ro resultOwners) claimAdjustPodSandboxNetwork(id, plugin string) error {
+	return ro.ownersFor(id).claimAdjustPodSandboxNetwork(plugin)
+}
+
+func (ro resultOwners) claimCreatePodSandboxNetworkConf(id, plugin string) error {
+	return ro.ownersFor(id).claimCreatePodSandboxNetworkConf(plugin)
 }
 
 func (o *owners) claimAnnotation(key, plugin string) error {
@@ -1188,6 +1284,22 @@ func (o *owners) claimCgroupsPath(plugin string) error {
 		return conflict(plugin, other, "cgroups path")
 	}
 	o.cgroupsPath = plugin
+	return nil
+}
+
+func (o *owners) claimAdjustPodSandboxNetwork(plugin string) error {
+	if other := o.adjustPodSandboxNetwork; other != "" {
+		return conflict(plugin, other, "adjust pod sandbox network")
+	}
+	o.adjustPodSandboxNetwork = plugin
+	return nil
+}
+
+func (o *owners) claimCreatePodSandboxNetworkConf(plugin string) error {
+	if other := o.createPodSandboxNetworkConf; other != "" {
+		return conflict(plugin, other, "adjust pod sandbox network")
+	}
+	o.createPodSandboxNetworkConf = plugin
 	return nil
 }
 

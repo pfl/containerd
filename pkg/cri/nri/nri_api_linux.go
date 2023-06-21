@@ -40,6 +40,8 @@ import (
 	"github.com/containerd/containerd/pkg/nri"
 	"github.com/containerd/nri/pkg/api"
 	nrigen "github.com/containerd/nri/pkg/runtime-tools/generate"
+
+	nriapi "github.com/containerd/nri/pkg/adaptation"
 )
 
 type API struct {
@@ -93,6 +95,18 @@ func (a *API) RunPodSandbox(ctx context.Context, criPod *sstore.Sandbox) error {
 
 	return err
 }
+
+func (a *API) AdjustPodSandboxNetwork(ctx context.Context, criPod *sstore.Sandbox, networkconfigs []*nriapi.NetworkConfiguration)  ([]*nriapi.NetworkConfiguration, error) {
+	if a.IsDisabled() {
+		return nil, nil
+	}
+
+	pod := a.nriPodSandbox(criPod)
+	modconfigs, err := a.nri.AdjustPodSandboxNetwork(ctx, pod, networkconfigs)
+
+	return modconfigs, err
+}
+
 
 func (a *API) StopPodSandbox(ctx context.Context, criPod *sstore.Sandbox) error {
 	if a.IsDisabled() {

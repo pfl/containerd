@@ -71,6 +71,8 @@ func ParseEventMask(events ...string) (EventMask, error) {
 		"postupdatecontainer": Event_POST_UPDATE_CONTAINER,
 		"stopcontainer":       Event_STOP_CONTAINER,
 		"removecontainer":     Event_REMOVE_CONTAINER,
+		"adjustpodsandboxnetwork": Event_ADJUST_POD_SANDBOX_NETWORK,
+		"createpodsandboxnetworkconf": Event_CREATE_POD_SANDBOX_NETWORK_CONF,
 	}
 
 	for _, event := range events {
@@ -130,6 +132,8 @@ func (m *EventMask) PrettyString() string {
 		Event_POST_UPDATE_CONTAINER: "PostUpdateContainer",
 		Event_STOP_CONTAINER:        "StopContainer",
 		Event_REMOVE_CONTAINER:      "RemoveContainer",
+		Event_ADJUST_POD_SANDBOX_NETWORK: "AdjustPodSandboxNetwork",
+		Event_CREATE_POD_SANDBOX_NETWORK_CONF: "CreatePodSandboxNetworkConf",
 	}
 
 	mask := *m

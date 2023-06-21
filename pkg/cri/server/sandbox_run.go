@@ -45,6 +45,8 @@ import (
 	"github.com/containerd/containerd/pkg/cri/util"
 	"github.com/containerd/containerd/pkg/netns"
 	"github.com/containerd/containerd/snapshots"
+
+	nri "github.com/containerd/nri/pkg/adaptation"
 )
 
 func init() {
@@ -526,6 +528,66 @@ func (c *criService) getNetworkPlugin(runtimeClass string) cni.CNI {
 	return i
 }
 
+func toNRINetworkConfiguration(sandbox *sandboxstore.Sandbox) []*nri.NetworkConfiguration {
+	var networkconfigs []*nri.NetworkConfiguration
+
+	id := sandbox.ID
+	config := sandbox.Config
+	labels := toCNILabels(id, config)
+	portmappings := toCNIPortMappings(config.GetPortMappings())
+	bandwidth, _ := toCNIBandWidth(config.Annotations)
+	dns := toCNIDNS(config.GetDnsConfig())
+
+	networkconfig := &nri.NetworkConfiguration{
+		Labels: labels,
+		Bandwidth: &nri.NetworkBandwidth{
+			IngressRate: bandwidth.IngressRate,
+			IngressBurst: bandwidth.IngressBurst,
+			EgressRate: bandwidth.EgressRate,
+			EgressBurst: bandwidth.EgressBurst,
+		},
+		DNS: &nri.NetworkDNS{
+			Servers: dns.Servers,
+			Searches: dns.Searches,
+			Options: dns.Options,
+		},
+	}
+
+	for _, portmap := range portmappings {
+		networkconfig.PortMappings = append(networkconfig.PortMappings, &nri.NetworkPortMappings{
+			HostPort: portmap.HostPort,
+			ContainerPort: portmap.ContainerPort,
+			Protocol: portmap.Protocol,
+		})
+
+	}
+	networkconfigs = append(networkconfigs, networkconfig)
+
+	return networkconfigs
+}
+
+func adjustNetworkConfiguration(sandbox *sandboxstore.Sandbox, networkconfigs []*nri.NetworkConfiguration, opts []cni.NamespaceOpts) ([]cni.NamespaceOpts, error) {
+
+	//	config := sandbox.Config
+
+	if len(networkconfigs) < 1 {
+		return opts, nil
+	}
+
+	nribandwidth := networkconfigs[1].Bandwidth
+	if nribandwidth != nil {
+		bandwidth := &cni.BandWidth{
+			IngressRate: nribandwidth.IngressRate,
+			IngressBurst: nribandwidth.IngressBurst,
+			EgressRate: nribandwidth.EgressRate,
+			EgressBurst: nribandwidth.EgressBurst,
+		}
+		opts = append(opts, cni.WithCapabilityBandWidth(*bandwidth))
+	}
+
+	return opts, nil
+}
+
 // setupPodNetwork setups up the network for a pod
 func (c *criService) setupPodNetwork(ctx context.Context, sandbox *sandboxstore.Sandbox) error {
 	var (
@@ -550,6 +612,17 @@ func (c *criService) setupPodNetwork(ctx context.Context, sandbox *sandboxstore.
 	} else {
 		opts = append(opts, o...)
 	}
+
+	// AdjustPodSandboxNetwork()
+	networkconfigurations, err := c.nri.AdjustPodSandboxNetwork(ctx, sandbox, toNRINetworkConfiguration(sandbox))
+	if err != nil {
+		return fmt.Errorf("NRI AdjustPodSandboxNetwork failed: %w", err)
+	}
+	opts, err = adjustNetworkConfiguration(sandbox, networkconfigurations, opts)
+	if err != nil {
+		return fmt.Errorf("AdjustPodSandboxNetwork updates failed: %w", err)
+	}
+
 	log.G(ctx).WithField("podsandboxid", id).Debugf("begin cni setup")
 	netStart := time.Now()
 	if c.config.CniConfig.NetworkPluginSetupSerially {

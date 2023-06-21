@@ -145,3 +145,5 @@ require (
 replace github.com/AdaLogics/go-fuzz-headers => github.com/AdamKorcz/go-fuzz-headers-1 v0.0.0-20230111232327-1f10f66a31bf
 
 replace k8s.io/cri-api => github.com/marquiz/kubernetes/staging/src/k8s.io/cri-api v0.0.0-20230509180252-56ad6027486a
+
+replace github.com/containerd/nri v0.3.0 => github.com/pfl/nri v0.0.5-adjustpodsandboxnetwork

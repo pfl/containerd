@@ -82,6 +82,8 @@ type API interface {
 
 	// StopContainer relays container removal events to NRI.
 	RemoveContainer(context.Context, PodSandbox, Container) error
+
+	AdjustPodSandboxNetwork(context.Context, PodSandbox, []*nri.NetworkConfiguration) ([]*nri.NetworkConfiguration, error)
 }
 
 type State int
@@ -412,7 +414,7 @@ func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container
 	return nil
 }
 
-func (l *local) RemoveContainer(ctx context.Context, pod PodSandbox, ctr Container) error {
+func (l *local) RemoveContainer(ctx context.Context, pod PodSandbox, ctr Container)  error {
 	if !l.IsEnabled() {
 		return nil
 	}
@@ -434,6 +436,28 @@ func (l *local) RemoveContainer(ctx context.Context, pod PodSandbox, ctr Contain
 	l.setState(request.Container.Id, Removed)
 
 	return err
+}
+
+func (l *local) AdjustPodSandboxNetwork(ctx context.Context, pod PodSandbox, networkconfigs []*nri.NetworkConfiguration) ([]*nri.NetworkConfiguration, error) {
+	if !l.IsEnabled() {
+		return nil, nil
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+
+	request := &nri.AdjustPodSandboxNetworkRequest{
+		Pod: podSandboxToNRI(pod),
+		Networkconfiguration: networkconfigs,
+	}
+
+	response, err := l.nri.AdjustPodSandboxNetwork(ctx, request)
+	if err != nil || response == nil {
+		return nil, err
+	}
+
+	return response.Networkconfiguration, err
 }
 
 func (l *local) syncPlugin(ctx context.Context, syncFn nri.SyncCB) error {

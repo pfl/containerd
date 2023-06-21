@@ -43,6 +43,7 @@ PLUGINS := \
 	$(BIN_PATH)/hook-injector \
 	$(BIN_PATH)/differ \
 	$(BIN_PATH)/v010-adapter \
+	$(BIN_PATH)/adjustpodsandboxnetwork \
 	$(BIN_PATH)/template
 
 
@@ -113,6 +114,10 @@ $(BIN_PATH)/template: $(wildcard plugins/template/*.go)
 	$(Q)echo "Building $@..."; \
 	cd $(dir $<) && $(GO_BUILD) -o $@ .
 
+$(BIN_PATH)/adjustpodsandboxnetwork: $(wildcard plugins/adjustpodsandboxnetwork/*.go)
+	$(Q)echo "Building $@..."; \
+	cd $(dir $<) && $(GO_BUILD) -o $@ .
+
 #
 # test targets
 #
@@ -165,13 +170,13 @@ golangci-lint:
 #
 
 install-protoc install-protobuf:
-	$(Q)./scripts/install-protobuf && \
+	$(Q)./scripts/install-protobuf
 
 install-ttrpc-plugin:
-	$(Q)$(GO_INSTALL) github.com/containerd/ttrpc/cmd/protoc-gen-go-ttrpc@74421d10189e8c118870d294c9f7f62db2d33ec1
+	$(Q)$(GO_INSTALL) -mod=mod github.com/containerd/ttrpc/cmd/protoc-gen-go-ttrpc@74421d10189e8c118870d294c9f7f62db2d33ec1
 
 install-protoc-dependencies:
-	$(Q)$(GO_INSTALL) google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0
+	$(Q)$(GO_INSTALL) -mod=mod google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0
 
 install-ginkgo:
 	$(Q)$(GO_INSTALL) -mod=mod github.com/onsi/ginkgo/v2/ginkgo
