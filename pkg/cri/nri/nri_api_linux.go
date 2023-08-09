@@ -107,6 +107,15 @@ func (a *API) AdjustPodSandboxNetwork(ctx context.Context, criPod *sstore.Sandbo
 	return modconfigs, err
 }
 
+func (a *API) CreatePodSandboxNetworkConf(ctx context.Context, networkconfigs []*nriapi.CreateNetworkConf) ([]*nriapi.CreateNetworkConf, error) {
+	if a.IsDisabled() {
+		return nil, nil
+	}
+
+	modconfigs, err := a.nri.CreatePodSandboxNetworkConf(ctx, networkconfigs)
+
+	return modconfigs, err
+}
 
 func (a *API) StopPodSandbox(ctx context.Context, criPod *sstore.Sandbox) error {
 	if a.IsDisabled() {

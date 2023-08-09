@@ -84,6 +84,8 @@ type API interface {
 	RemoveContainer(context.Context, PodSandbox, Container) error
 
 	AdjustPodSandboxNetwork(context.Context, PodSandbox, []*nri.NetworkConfiguration) ([]*nri.NetworkConfiguration, error)
+
+	CreatePodSandboxNetworkConf(context.Context, []*nri.CreateNetworkConf) ([]*nri.CreateNetworkConf, error)
 }
 
 type State int
@@ -458,6 +460,26 @@ func (l *local) AdjustPodSandboxNetwork(ctx context.Context, pod PodSandbox, net
 	}
 
 	return response.Networkconfiguration, err
+}
+
+func (l *local) CreatePodSandboxNetworkConf(ctx context.Context, confs []*nri.CreateNetworkConf) ([]*nri.CreateNetworkConf, error) {
+	if !l.IsEnabled() {
+		return nil, nil
+	}
+
+	l.Lock()
+	defer l.Unlock()
+
+	request := &nri.CreatePodSandboxNetworkConfRequest{
+		NetworkConf: confs,
+	}
+
+	response, err := l.nri.CreatePodSandboxNetworkConf(ctx, request)
+	if err != nil || response == nil {
+		return nil, err
+	}
+
+	return response.NetworkConf, err
 }
 
 func (l *local) syncPlugin(ctx context.Context, syncFn nri.SyncCB) error {

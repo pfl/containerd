@@ -80,6 +80,9 @@ func newCNINetConfSyncer(name, confDir string, netPlugin cni.CNI, loadOpts []cni
 			log.L.WithError(err).Error("failed to get CNI QoS from the default plugin")
 		}
 	}
+
+	// CreatePodSandboxNetworkConf()
+
 	return syncer, nil
 }
 
@@ -114,6 +117,9 @@ func (syncer *cniNetConfSyncer) syncLoop() error {
 				if err := updateCniQoSResources(syncer.netPlugin); err != nil {
 					log.L.WithError(err).Error("failed to get CNI QoS from the default plugin")
 				}
+
+				// CreatePodSandboxNetworkConf()
+
 			}
 
 		case err := <-syncer.watcher.Errors:

@@ -21,10 +21,14 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"context"
 
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/go-cni"
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/containerd/containerd/pkg/cri/nri"
+	nriapi "github.com/containerd/nri/pkg/adaptation"
 )
 
 // cniNetConfSyncer is used to reload cni network conf triggered by fs change
@@ -73,6 +77,9 @@ func newCNINetConfSyncer(confDir string, netPlugin cni.CNI, loadOpts []cni.Opt) 
 		log.L.WithError(err).Error("failed to load cni during init, please check CRI plugin status before setting up network for pods")
 		syncer.updateLastStatus(err)
 	}
+
+	// CreatePodSandboxNetworkConf()
+	syncer.createPodSandboxNetworkConf()
 	return syncer, nil
 }
 
@@ -104,6 +111,9 @@ func (syncer *cniNetConfSyncer) syncLoop() error {
 			}
 			syncer.updateLastStatus(lerr)
 
+			// CreatePodSandboxNetworkConf()
+			syncer.createPodSandboxNetworkConf()
+
 		case err := <-syncer.watcher.Errors:
 			if err != nil {
 				log.L.WithError(err).Error("failed to continue sync cni conf change")
@@ -130,4 +140,33 @@ func (syncer *cniNetConfSyncer) updateLastStatus(err error) {
 // stop stops watcher in the syncLoop.
 func (syncer *cniNetConfSyncer) stop() error {
 	return syncer.watcher.Close()
+}
+
+func (syncer *cniNetConfSyncer) createPodSandboxNetworkConf() error {
+	configresult := syncer.netPlugin.GetConfig()
+	if configresult == nil {
+		return nil
+	}
+
+	ctx := context.Background()
+	if (ctx == nil) {
+		return nil
+	}
+
+	var nri *nri.API
+	var networkconfs []*nriapi.CreateNetworkConf
+
+	for _, networks := range configresult.Networks {
+		networkconfs = append(networkconfs, &nriapi.CreateNetworkConf{
+			NetworkType: networks.Config.Name,
+			Source: networks.Config.Source,
+		})
+	}
+
+	reply, err := nri.CreatePodSandboxNetworkConf(ctx, networkconfs)
+	if (err == nil && reply != nil) {
+		//process reply
+	}
+
+	return err
 }
